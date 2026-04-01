@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["buyer", "seller", "admin"] },
+        "profileImage": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "email", "role"]
+    },
+    "Car": {
+      "title": "Car",
+      "description": "Car listing information",
+      "type": "object",
+      "properties": {
+        "carId": { "type": "string" },
+        "title": { "type": "string" },
+        "brand": { "type": "string" },
+        "model": { "type": "string" },
+        "year": { "type": "integer" },
+        "fuelType": { "type": "string" },
+        "transmission": { "type": "string" },
+        "kilometersDriven": { "type": "integer" },
+        "price": { "type": "number" },
+        "location": { "type": "string" },
+        "description": { "type": "string" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "sellerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "sold", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "brand", "model", "price", "sellerId", "status"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Transaction record",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "carId": { "type": "string" },
+        "price": { "type": "number" },
+        "paymentStatus": { "type": "string" },
+        "orderDate": { "type": "string", "format": "date-time" }
+      },
+      "required": ["buyerId", "sellerId", "carId", "price"]
+    },
+    "Favorite": {
+      "title": "Favorite",
+      "description": "Saved car listings",
+      "type": "object",
+      "properties": {
+        "favoriteId": { "type": "string" },
+        "userId": { "type": "string" },
+        "carId": { "type": "string" }
+      },
+      "required": ["userId", "carId"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Chat message",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "message": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["chatId", "senderId", "receiverId", "message"]
+    },
+    "Document": {
+      "title": "Document",
+      "description": "Paperwork documents",
+      "type": "object",
+      "properties": {
+        "docId": { "type": "string" },
+        "userId": { "type": "string" },
+        "carId": { "type": "string" },
+        "type": { "type": "string", "enum": ["RC", "Insurance", "ID", "Address"] },
+        "url": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "carId", "type", "url"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/cars/{carId}": { "schema": "Car", "description": "Car listings" },
+    "/orders/{orderId}": { "schema": "Order", "description": "Transaction history" },
+    "/favorites/{favoriteId}": { "schema": "Favorite", "description": "User favorites" },
+    "/messages/{messageId}": { "schema": "Message", "description": "Chat messages" },
+    "/documents/{docId}": { "schema": "Document", "description": "Paperwork uploads" }
+  }
+}

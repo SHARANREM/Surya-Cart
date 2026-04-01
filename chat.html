@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messages - CarKart</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 h-screen flex flex-col">
+    <div id="navbar-placeholder"></div>
+
+    <main class="flex-grow max-w-7xl mx-auto w-full px-4 py-8 flex flex-col overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-xl border border-gray-100 flex-grow flex overflow-hidden">
+            <!-- Chat List -->
+            <aside class="w-full md:w-80 border-r border-gray-100 flex flex-col">
+                <div class="p-6 border-b border-gray-100">
+                    <h2 class="text-xl font-bold">Messages</h2>
+                </div>
+                <div id="chat-list" class="flex-grow overflow-y-auto">
+                    <div class="p-12 text-center text-gray-400">Loading chats...</div>
+                </div>
+            </aside>
+
+            <!-- Chat Window -->
+            <section class="hidden md:flex flex-grow flex-col bg-gray-50">
+                <div id="chat-header" class="p-6 bg-white border-b border-gray-100 flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-10 h-10 bg-gray-200 rounded-full"></div>
+                        <div>
+                            <p class="font-bold text-gray-900">Select a chat</p>
+                            <p class="text-xs text-gray-500">to start messaging</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="messages-container" class="flex-grow p-6 overflow-y-auto flex flex-col space-y-4">
+                    <!-- Messages loaded here -->
+                    <div class="flex-grow flex items-center justify-center text-gray-400">
+                        <p>Your conversation will appear here</p>
+                    </div>
+                </div>
+
+                <div class="p-6 bg-white border-t border-gray-100">
+                    <form id="message-form" class="flex space-x-4">
+                        <input type="text" id="message-input" placeholder="Type your message..." class="flex-grow px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        <button type="submit" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition">Send</button>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script type="module">
+        import { loadComponent, showToast } from '/utils/helpers.js';
+        import { db, auth } from '/js/firebase-config.js';
+        import { 
+            collection, 
+            query, 
+            where, 
+            getDocs, 
+            addDoc, 
+            serverTimestamp, 
+            onSnapshot, 
+            orderBy,
+            doc,
+            getDoc
+        } from 'firebase/firestore';
+        import { onAuthStateChanged } from 'firebase/auth';
+
+        loadComponent('navbar', 'navbar-placeholder');
+
+        const urlParams = new URLSearchParams(window.location.search);
+        let activeChatId = null;
+        let receiverId = urlParams.get('sellerId');
+        let carId = urlParams.get('carId');
+
+        onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                window.location.href = '/login.html';
+            } else {
+                loadChatList(user.uid);
+                if (receiverId) {
+                    startNewChat(user.uid, receiverId);
+                }
+            }
+        });
+
+        async function loadChatList(userId) {
+            const list = document.getElementById('chat-list');
+            // In a real app, we'd have a 'chats' collection. 
+            // For this demo, we'll find unique conversations from 'messages'
+            const q = query(collection(db, 'messages'), where('senderId', '==', userId));
+            const q2 = query(collection(db, 'messages'), where('receiverId', '==', userId));
+            
+            // This is a simplified chat list logic
+            list.innerHTML = '<div class="p-6 text-sm text-gray-500">Conversations will appear here when you start messaging.</div>';
+        }
+
+        async function startNewChat(userId, targetId) {
+            activeChatId = [userId, targetId].sort().join('_');
+            const targetDoc = await getDoc(doc(db, 'users', targetId));
+            const target = targetDoc.data();
+
+            document.getElementById('chat-header').innerHTML = `
+                <div class="flex items-center space-x-4">
+                    <img src="${target?.profileImage || 'https://ui-avatars.com/api/?name=' + target?.name}" class="w-10 h-10 rounded-full border">
+                    <div>
+                        <p class="font-bold text-gray-900">${target?.name}</p>
+                        <p class="text-xs text-green-500">Online</p>
+                    </div>
+                </div>
+            `;
+
+            listenToMessages(activeChatId);
+        }
+
+        function listenToMessages(chatId) {
+            const container = document.getElementById('messages-container');
+            const q = query(
+                collection(db, 'messages'), 
+                where('chatId', '==', chatId),
+                orderBy('timestamp', 'asc')
+            );
+
+            onSnapshot(q, (snapshot) => {
+                container.innerHTML = '';
+                if (snapshot.empty) {
+                    container.innerHTML = '<div class="flex-grow flex items-center justify-center text-gray-400"><p>No messages yet. Say hello!</p></div>';
+                    return;
+                }
+
+                snapshot.forEach(doc => {
+                    const msg = doc.data();
+                    const isMe = msg.senderId === auth.currentUser.uid;
+                    
+                    const div = document.createElement('div');
+                    div.className = `flex ${isMe ? 'justify-end' : 'justify-start'}`;
+                    div.innerHTML = `
+                        <div class="max-w-[70%] px-4 py-2 rounded-2xl ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none'}">
+                            <p class="text-sm">${msg.message}</p>
+                            <p class="text-[10px] mt-1 opacity-70 text-right">${msg.timestamp?.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || '...'}</p>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+                container.scrollTop = container.scrollHeight;
+            });
+        }
+
+        document.getElementById('message-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            
+            if (!message || !activeChatId) return;
+
+            try {
+                const user = auth.currentUser;
+                const [id1, id2] = activeChatId.split('_');
+                const targetId = id1 === user.uid ? id2 : id1;
+
+                await addDoc(collection(db, 'messages'), {
+                    chatId: activeChatId,
+                    senderId: user.uid,
+                    receiverId: targetId,
+                    message: message,
+                    timestamp: serverTimestamp()
+                });
+                input.value = '';
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        });
+    </script>
+</body>
+</html>

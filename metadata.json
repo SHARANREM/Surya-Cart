@@ -1,0 +1,5 @@
+{
+  "name": "CarKart",
+  "description": "A production-ready second-hand car marketplace built with Vanilla JS and Firebase.",
+  "requestFramePermissions": []
+}

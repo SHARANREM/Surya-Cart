@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Details - CarKart</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-50">
+    <div id="navbar-placeholder"></div>
+
+    <main id="car-details-container" class="max-w-7xl mx-auto px-4 py-12">
+        <div class="animate-pulse space-y-8">
+            <div class="h-96 bg-gray-200 rounded-2xl"></div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 h-64 bg-gray-200 rounded-2xl"></div>
+                <div class="h-64 bg-gray-200 rounded-2xl"></div>
+            </div>
+        </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script type="module">
+        import { loadComponent, formatCurrency, formatDate, showToast } from '/utils/helpers.js';
+        import { db, auth } from '/js/firebase-config.js';
+        import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+        import { onAuthStateChanged } from 'firebase/auth';
+        import { getCarImage } from '/utils/carImages.js';
+
+        loadComponent('navbar', 'navbar-placeholder');
+        loadComponent('footer', 'footer-placeholder');
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const carId = urlParams.get('id');
+
+        if (!carId) {
+            window.location.href = '/browse.html';
+        }
+
+        async function loadCarDetails() {
+            try {
+                const carDoc = await getDoc(doc(db, 'cars', carId));
+                if (!carDoc.exists()) {
+                    document.getElementById('car-details-container').innerHTML = '<p class="text-center py-12">Car not found.</p>';
+                    return;
+                }
+
+                const car = carDoc.data();
+                const sellerDoc = await getDoc(doc(db, 'users', car.sellerId));
+                const seller = sellerDoc.data();
+
+                renderCarDetails(car, seller);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        function renderCarDetails(car, seller) {
+            const container = document.getElementById('car-details-container');
+            container.innerHTML = `
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Left: Images & Info -->
+                    <div class="lg:col-span-2 space-y-8">
+                        <!-- Image Gallery -->
+                        <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+                            <div class="relative h-[500px]">
+                                <img src="${getCarImage(car.brand)}" 
+                                     class="w-full h-full object-cover" id="main-image" referrerPolicy="no-referrer">
+                            </div>
+                        </div>
+
+                        <!-- Specs Grid -->
+                        <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+                            <h2 class="text-2xl font-bold mb-6">Specifications</h2>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+                                <div>
+                                    <p class="text-gray-500 text-sm">Brand</p>
+                                    <p class="font-bold text-lg">${car.brand}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 text-sm">Model</p>
+                                    <p class="font-bold text-lg">${car.model}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 text-sm">Year</p>
+                                    <p class="font-bold text-lg">${car.year}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 text-sm">Fuel</p>
+                                    <p class="font-bold text-lg">${car.fuelType}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 text-sm">Transmission</p>
+                                    <p class="font-bold text-lg">${car.transmission}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 text-sm">KM Driven</p>
+                                    <p class="font-bold text-lg">${car.kilometersDriven.toLocaleString()} km</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 text-sm">Location</p>
+                                    <p class="font-bold text-lg">${car.location}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 text-sm">Posted On</p>
+                                    <p class="font-bold text-lg">${formatDate(car.createdAt?.toDate())}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+                            <h2 class="text-2xl font-bold mb-4">Description</h2>
+                            <p class="text-gray-600 leading-relaxed whitespace-pre-line">${car.description}</p>
+                        </div>
+                    </div>
+
+                    <!-- Right: Pricing & Seller -->
+                    <div class="space-y-8">
+                        <div class="bg-white p-8 rounded-2xl shadow-xl border border-gray-100 sticky top-24">
+                            <div class="mb-6">
+                                <h1 class="text-3xl font-bold text-gray-900 mb-2">${car.title}</h1>
+                                <p class="text-4xl font-extrabold text-blue-600">${formatCurrency(car.price)}</p>
+                            </div>
+
+                            <div class="space-y-4 mb-8">
+                                <button id="buy-now-btn" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-200">Buy Now</button>
+                                <button id="save-car-btn" class="w-full border-2 border-gray-200 text-gray-700 py-4 rounded-xl font-bold text-lg hover:bg-gray-50 transition">Save to Favorites</button>
+                            </div>
+
+                            <div class="pt-8 border-t border-gray-100">
+                                <h3 class="font-bold mb-4">Seller Information</h3>
+                                <div class="flex items-center space-x-4 mb-6">
+                                    <img src="${seller?.profileImage || 'https://ui-avatars.com/api/?name=' + seller?.name}" class="w-12 h-12 rounded-full border">
+                                    <div>
+                                        <p class="font-bold text-gray-900">${seller?.name}</p>
+                                        <p class="text-sm text-gray-500">Member since ${formatDate(seller?.createdAt?.toDate())}</p>
+                                    </div>
+                                </div>
+                                <button id="contact-seller-btn" class="w-full bg-gray-900 text-white py-3 rounded-lg font-semibold hover:bg-black transition">Chat with Seller</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('buy-now-btn').addEventListener('click', handleBuyNow);
+            document.getElementById('save-car-btn').addEventListener('click', handleSaveFavorite);
+            document.getElementById('contact-seller-btn').addEventListener('click', () => {
+                window.location.href = `/chat.html?sellerId=${car.sellerId}&carId=${carId}`;
+            });
+        }
+
+        async function handleBuyNow() {
+            const user = auth.currentUser;
+            if (!user) {
+                showToast('Please login to buy this car', 'error');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            try {
+                const carDoc = await getDoc(doc(db, 'cars', carId));
+                const car = carDoc.data();
+
+                if (car.sellerId === user.uid) {
+                    showToast('You cannot buy your own car!', 'error');
+                    return;
+                }
+
+                const orderData = {
+                    buyerId: user.uid,
+                    sellerId: car.sellerId,
+                    carId: carId,
+                    price: car.price,
+                    paymentStatus: 'Paid',
+                    orderDate: serverTimestamp()
+                };
+
+                const orderRef = await addDoc(collection(db, 'orders'), orderData);
+                showToast('Purchase successful!', 'success');
+                setTimeout(() => window.location.href = `/invoice.html?orderId=${orderRef.id}`, 2000);
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        async function handleSaveFavorite() {
+            const user = auth.currentUser;
+            if (!user) {
+                showToast('Please login to save favorites', 'error');
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, 'favorites'), {
+                    userId: user.uid,
+                    carId: carId,
+                    createdAt: serverTimestamp()
+                });
+                showToast('Added to favorites!', 'success');
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        loadCarDetails();
+    </script>
+</body>
+
+</html>

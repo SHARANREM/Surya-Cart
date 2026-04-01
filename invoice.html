@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice - CarKart</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen py-12 px-4">
+    <div class="max-w-3xl mx-auto">
+        <div id="invoice-content" class="bg-white p-12 rounded-2xl shadow-2xl border border-gray-100 mb-8">
+            <div class="animate-pulse space-y-8">
+                <div class="h-12 bg-gray-200 w-1/3"></div>
+                <div class="flex justify-between">
+                    <div class="h-24 bg-gray-200 w-1/3"></div>
+                    <div class="h-24 bg-gray-200 w-1/3"></div>
+                </div>
+                <div class="h-48 bg-gray-200"></div>
+            </div>
+        </div>
+
+        <div class="flex justify-center space-x-4">
+            <button id="download-btn" class="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg">Download PDF Invoice</button>
+            <a href="/dashboard.html" class="bg-white text-gray-700 px-8 py-3 rounded-xl font-bold border border-gray-200 hover:bg-gray-50 transition">Back to Dashboard</a>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db, auth } from '/js/firebase-config.js';
+        import { doc, getDoc } from 'firebase/firestore';
+        import { formatCurrency, formatDate } from '/utils/helpers.js';
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderId = urlParams.get('orderId');
+
+        async function loadInvoice() {
+            if (!orderId) return;
+
+            try {
+                const orderDoc = await getDoc(doc(db, 'orders', orderId));
+                const order = orderDoc.data();
+                
+                const buyerDoc = await getDoc(doc(db, 'users', order.buyerId));
+                const sellerDoc = await getDoc(doc(db, 'users', order.sellerId));
+                const carDoc = await getDoc(doc(db, 'cars', order.carId));
+
+                const buyer = buyerDoc.data();
+                const seller = sellerDoc.data();
+                const car = carDoc.data();
+
+                renderInvoice(order, buyer, seller, car);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        function renderInvoice(order, buyer, seller, car) {
+            const content = document.getElementById('invoice-content');
+            content.innerHTML = `
+                <div class="flex justify-between items-start mb-12">
+                    <div>
+                        <h1 class="text-4xl font-black text-blue-600 mb-2">CarKart</h1>
+                        <p class="text-gray-500">Official Sales Invoice</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold text-lg">INVOICE #${orderId.toUpperCase().substr(0, 8)}</p>
+                        <p class="text-gray-500">Date: ${formatDate(order.orderDate?.toDate())}</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-12 mb-12">
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Buyer Details</h3>
+                        <p class="font-bold text-lg">${buyer.name}</p>
+                        <p class="text-gray-600">${buyer.email}</p>
+                        <p class="text-gray-600">${buyer.phone || 'N/A'}</p>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Seller Details</h3>
+                        <p class="font-bold text-lg">${seller.name}</p>
+                        <p class="text-gray-600">${seller.email}</p>
+                        <p class="text-gray-600">${seller.phone || 'N/A'}</p>
+                    </div>
+                </div>
+
+                <div class="border-t border-b border-gray-100 py-8 mb-12">
+                    <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-6">Vehicle Details</h3>
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="font-bold text-xl">${car.title}</p>
+                            <p class="text-gray-500">${car.brand} ${car.model} (${car.year})</p>
+                        </div>
+                        <p class="text-2xl font-bold text-gray-900">${formatCurrency(order.price)}</p>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center bg-gray-50 p-6 rounded-xl">
+                    <p class="text-xl font-bold">Total Amount Paid</p>
+                    <p class="text-3xl font-black text-blue-600">${formatCurrency(order.price)}</p>
+                </div>
+
+                <div class="mt-12 text-center text-gray-400 text-sm">
+                    <p>This is a digitally generated receipt for the transaction on CarKart Marketplace.</p>
+                </div>
+            `;
+
+            document.getElementById('download-btn').addEventListener('click', () => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                doc.setFontSize(22);
+                doc.text("CarKart Invoice", 20, 20);
+                
+                doc.setFontSize(12);
+                doc.text(`Invoice ID: ${orderId}`, 20, 35);
+                doc.text(`Date: ${formatDate(order.orderDate?.toDate())}`, 20, 42);
+                
+                doc.text("Buyer:", 20, 60);
+                doc.text(buyer.name, 20, 67);
+                doc.text(buyer.email, 20, 74);
+                
+                doc.text("Seller:", 120, 60);
+                doc.text(seller.name, 120, 67);
+                doc.text(seller.email, 120, 74);
+                
+                doc.line(20, 85, 190, 85);
+                
+                doc.text("Vehicle Details:", 20, 95);
+                doc.text(car.title, 20, 105);
+                doc.text(`${car.brand} ${car.model} (${car.year})`, 20, 112);
+                
+                doc.setFontSize(16);
+                doc.text(`Total Price: ${formatCurrency(order.price)}`, 20, 130);
+                
+                doc.save(`CarKart_Invoice_${orderId}.pdf`);
+            });
+        }
+
+        loadInvoice();
+    </script>
+</body>
+</html>

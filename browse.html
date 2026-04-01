@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse Cars - CarKart</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+    <div id="navbar-placeholder"></div>
+
+    <main class="max-w-7xl mx-auto px-4 py-12">
+        <div class="flex flex-col lg:flex-row gap-8">
+            <!-- Filters Sidebar -->
+            <aside class="w-full lg:w-64 space-y-8">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-xl font-bold mb-6">Filters</h2>
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Search</label>
+                            <input type="text" id="search-input" placeholder="Search cars..." class="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Brand</label>
+                            <select id="brand-filter" class="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition">
+                                <option value="">All Brands</option>
+                                <option value="Toyota">Toyota</option>
+                                <option value="Honda">Honda</option>
+                                <option value="Ford">Ford</option>
+                                <option value="BMW">BMW</option>
+                                <option value="Mercedes">Mercedes</option>
+                                <option value="Audi">Audi</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Price Range</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="number" id="min-price" placeholder="Min" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+                                <input type="number" id="max-price" placeholder="Max" class="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Fuel Type</label>
+                            <div class="space-y-2">
+                                <label class="flex items-center space-x-2 text-sm text-gray-600">
+                                    <input type="checkbox" name="fuel" value="Petrol" class="rounded text-blue-600">
+                                    <span>Petrol</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-sm text-gray-600">
+                                    <input type="checkbox" name="fuel" value="Diesel" class="rounded text-blue-600">
+                                    <span>Diesel</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-sm text-gray-600">
+                                    <input type="checkbox" name="fuel" value="Electric" class="rounded text-blue-600">
+                                    <span>Electric</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <button id="apply-filters" class="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition">Apply Filters</button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Listings Grid -->
+            <div class="flex-grow">
+                <div class="flex justify-between items-center mb-8">
+                    <h1 class="text-3xl font-bold">Browse Cars</h1>
+                    <select id="sort-by" class="bg-white px-4 py-2 rounded-lg border border-gray-200 text-sm outline-none">
+                        <option value="newest">Newest First</option>
+                        <option value="price-low">Price: Low to High</option>
+                        <option value="price-high">Price: High to Low</option>
+                    </select>
+                </div>
+
+                <div id="listings-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <!-- Listings loaded here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script type="module">
+        import { loadComponent } from '/utils/helpers.js';
+        import { db } from '/js/firebase-config.js';
+        import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+        import { createCarCard } from '/js/marketplace.js';
+
+        loadComponent('navbar', 'navbar-placeholder');
+        loadComponent('footer', 'footer-placeholder');
+
+        async function fetchListings() {
+            const grid = document.getElementById('listings-grid');
+            grid.innerHTML = '<div class="col-span-full flex justify-center py-12"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>';
+
+            const brand = document.getElementById('brand-filter').value;
+            const sortBy = document.getElementById('sort-by').value;
+            
+            let q = query(collection(db, 'cars'), where('status', '==', 'approved'));
+
+            if (brand) {
+                q = query(q, where('brand', '==', brand));
+            }
+
+            // Note: Multiple where/orderBy might need composite indexes in Firebase
+            // For simplicity in this demo, we'll filter some things client-side if needed
+            
+            try {
+                const snapshot = await getDocs(q);
+                grid.innerHTML = '';
+                
+                if (snapshot.empty) {
+                    grid.innerHTML = '<p class="col-span-full text-center text-gray-500 py-12">No cars found matching your criteria.</p>';
+                    return;
+                }
+
+                let cars = [];
+                snapshot.forEach(doc => cars.push({ id: doc.id, ...doc.data() }));
+
+                // Client-side sorting
+                if (sortBy === 'price-low') cars.sort((a, b) => a.price - b.price);
+                else if (sortBy === 'price-high') cars.sort((a, b) => b.price - a.price);
+                else cars.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+
+                cars.forEach(car => {
+                    grid.appendChild(createCarCard(car.id, car));
+                });
+            } catch (error) {
+                console.error(error);
+                grid.innerHTML = '<p class="col-span-full text-center text-red-500 py-12">Error loading cars.</p>';
+            }
+        }
+
+        document.getElementById('apply-filters').addEventListener('click', fetchListings);
+        document.getElementById('sort-by').addEventListener('change', fetchListings);
+        
+        fetchListings();
+    </script>
+</body>
+</html>
